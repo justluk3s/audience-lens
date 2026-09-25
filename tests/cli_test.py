@@ -1,11 +1,10 @@
-# justluk3s h3re
-
 import asyncio
 import html
 import os
 from dotenv import load_dotenv
 import json
 import httpx
+import questionary
 
 load_dotenv()
 
@@ -53,14 +52,23 @@ def clean_video_item(item: dict) -> dict:
     "video_id": item.get("id", {}).get("videoId"),
     "thumbnail_url": thumbnail_url,
   }
-  
-def video_string_print(item: dict) -> str:
-    return(f"{item["title"]} -| {item["channel_title"]} -| {item["published_date"]}")
-
 
 if __name__ == "__main__":
-    data = asyncio.run(search_videos("pizza"))
-    for video in data["items"]:
-        cleaned_item = clean_video_item(video)
-        print(video_string_print(cleaned_item))
+  clean_video = []
+  choices = []
+  
+  raw_videos = asyncio.run(search_videos("pizza"))
+
+  for video in raw_videos["items"]:
+    clean_video.append(clean_video_item(video))
+
+  for video in clean_video:
+    choices.append(
+      questionary.Choice(
+        title=f"{video['title']} -| {video['channel_title']} -| {video['published_date']}",
+        value=video["video_id"]
+      )
+    )
     
+  choice = questionary.select("Choose an option:", choices=choices).ask()
+  print(choice)
