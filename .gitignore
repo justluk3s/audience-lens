@@ -86,3 +86,6 @@ data/exports/
 
 *.bak
 *.swp
+
+# Experiments (local only)
+experiments/
