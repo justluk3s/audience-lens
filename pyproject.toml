@@ -1,0 +1,19 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "audience-lens"
+version = "0.1.0"
+description = "Analyze audience sentiment and topics from video content"
+authors = [{ name = "Lucas" }]
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+    "httpx",
+    "python-dotenv",
+    "questionary",
+]
+
+[project.scripts]
+audience-lens = "audience_lens.cli.app:main"
