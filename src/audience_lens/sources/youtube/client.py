@@ -1,12 +1,19 @@
 # justluk3s h3re
 
-# libraries
-import html
 import httpx
+from requests import Session
+from youtube_transcript_api import (
+    NoTranscriptFound,
+    TranscriptsDisabled,
+    VideoUnavailable,
+    YouTubeTranscriptApi,
+)
+
 from audience_lens.config import YOUTUBE_API_KEY
 
-# Function to query videos from a string
-async def search_videos(query: str, max_results: int = 10):
+
+async def search_videos(query: str, max_results: int = 10) -> dict:
+    """Query YouTube search endpoint for video metadata."""
     url = "https://www.googleapis.com/youtube/v3/search"
     params = {
         "part": "snippet",
@@ -14,32 +21,74 @@ async def search_videos(query: str, max_results: int = 10):
         "type": "video",
         "maxResults": max_results,
         "key": YOUTUBE_API_KEY,
-        # Selecting only useful fields:
         "fields": "items(id/videoId,snippet(title,publishedAt,channelTitle,thumbnails))",
     }
-    
+
     async with httpx.AsyncClient() as client:
         response = await client.get(url, params=params)
         response.raise_for_status()
         return response.json()
 
-def extract_video_data(item: dict) -> dict:
-    snippet = item.get("snippet", {})
-    # Extract thumbnails mapping each size to its URL and dimensions
-    thumbnails_raw = snippet.get("thumbnails", {})
-    thumbnails = {
-        name: {
-            "url": thumb["url"],
-            "width": thumb["width"],
-            "height": thumb["height"],
-        }
-        for name, thumb in thumbnails_raw.items()
-        if "url" in thumb
-    }
-    return {
-        "video_id": item.get("id", {}).get("videoId"),
-        "title": html.unescape(snippet.get("title", "")),  # unescapes &#39;, &amp;, etc.
-        "channel_title": html.unescape(snippet.get("channelTitle", "")),
-        "published_at": snippet.get("publishedAt", ""),
-        "thumbnails": thumbnails,
-    }
+
+def get_transcript_session() -> Session:
+    """Create a requests session mimicking a desktop browser."""
+    session = Session()
+    session.headers.update({
+        "User-Agent": (
+            "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
+            "AppleWebKit/537.36 (KHTML, like Gecko) "
+            "Chrome/128.0.0.0 Safari/537.36"
+        ),
+        "Accept-Language": "en-US,en;q=0.9,it;q=0.8",
+        "Sec-Fetch-Mode": "navigate",
+    })
+    return session
+
+
+def get_video_transcript(
+    video_id: str,
+    target_language: str = "en",
+) -> list[dict] | None:
+    """
+    Fetch the transcript for a YouTube video.
+
+    1. Checks for direct target language or common variants.
+    2. Falls back to translating any available transcript.
+    3. Falls back to the last available raw transcript if translation fails.
+    """
+    session = get_transcript_session()
+    ytt_api = YouTubeTranscriptApi(http_client=session)
+
+    try:
+        transcript_list = ytt_api.list(video_id)
+
+        try:
+            transcript = transcript_list.find_transcript(
+                [target_language, "en-US", "en-GB"]
+            )
+        except NoTranscriptFound:
+            available_transcripts = list(transcript_list)
+            if not available_transcripts:
+                print(f"⚠️ No transcripts available for video '{video_id}'.")
+                return None
+
+            transcript = None
+            for t in available_transcripts:
+                if t.is_translatable:
+                    transcript = t.translate(target_language)
+                    break
+
+            if transcript is None:
+                transcript = available_transcripts[-1]
+
+        return transcript.fetch().to_raw_data()
+
+    except TranscriptsDisabled:
+        print(f"⚠️ Transcripts are disabled for video '{video_id}'.")
+        return None
+    except VideoUnavailable:
+        print(f"⚠️ Video '{video_id}' is unavailable (private or deleted).")
+        return None
+    except Exception as e:
+        print(f"⚠️ Could not retrieve transcript for video '{video_id}': {e}")
+        return None

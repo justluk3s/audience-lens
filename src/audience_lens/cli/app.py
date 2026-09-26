@@ -1,7 +1,9 @@
 # justluk3s h3re
 
 import asyncio
+
 import questionary
+
 from audience_lens.sources import youtube
 
 # Registered video source providers
@@ -13,7 +15,7 @@ ACTIVE_SOURCES = [youtube]
 # =====================================================
 
 def format_choice_label(video: dict) -> str:
-    """Format a clean, readable one-liner label with provider for terminal selection."""
+    """Format a clean, readable label with provider for terminal selection."""
     provider = video.get("provider", "UNKNOWN").upper()
     title = video.get("title", "Untitled")
     channel = video.get("channel_title", "Unknown Channel")
@@ -23,9 +25,7 @@ def format_choice_label(video: dict) -> str:
 
 
 async def prompt_search_input() -> str | None:
-    """
-    Prompt the user for a search term, direct URL, or video ID.
-    """
+    """Prompt the user for a search term, direct URL, or video ID."""
     answer = await questionary.text("Search video or paste URL / ID:").ask_async()
     if not answer or not answer.strip():
         return None
@@ -33,13 +33,11 @@ async def prompt_search_input() -> str | None:
 
 
 async def prompt_video_selection(videos: list[dict]) -> tuple[str, str] | None:
-    """
-    Present a list of parsed video dictionaries for interactive selection.
-    """
+    """Present a list of parsed video dictionaries for interactive selection."""
     choices = [
         questionary.Choice(
             title=format_choice_label(v),
-            value=(v["provider"], v["video_id"])
+            value=(v["provider"], v["video_id"]),
         )
         for v in videos
         if v.get("video_id")
@@ -50,7 +48,7 @@ async def prompt_video_selection(videos: list[dict]) -> tuple[str, str] | None:
 
     return await questionary.select(
         "Select a video to analyze:",
-        choices=choices
+        choices=choices,
     ).ask_async()
 
 
@@ -58,9 +56,12 @@ async def prompt_video_selection(videos: list[dict]) -> tuple[str, str] | None:
 # Provider & Search Logic
 # =====================================================
 
-def resolve_direct_input(raw_input: str) -> tuple[str, str] | tuple[None, None]:
+def resolve_direct_input(
+    raw_input: str,
+) -> tuple[str, str] | tuple[None, None]:
     """
-    Checks registered sources to see if raw_input is a valid direct URL or ID.
+    Check registered sources to see if raw_input is a valid direct URL or ID.
+
     Returns (provider_name, item_id) or (None, None).
     """
     for source in ACTIVE_SOURCES:
@@ -74,7 +75,6 @@ async def search_all_sources(query: str, max_results: int = 10) -> list[dict]:
     """Query active sources and return normalized video items."""
     results = []
 
-    # Currently querying YouTube; ready for asyncio.gather across multiple providers
     try:
         yt_data = await youtube.search_videos(query, max_results=max_results)
         for item in yt_data.get("items", []):
@@ -88,13 +88,12 @@ async def search_all_sources(query: str, max_results: int = 10) -> list[dict]:
 
 
 # =====================================================
-# Main Orchestration
+# Main Orchestration & Display
 # =====================================================
 
 async def select_or_find_video() -> tuple[str, str] | tuple[None, None]:
     """
-    Orchestrates finding a video: prompts the user, checks for direct URLs,
-    or falls back to multi-provider search & selection.
+    Orchestrate video discovery: prompt, verify direct IDs/URLs, or search.
     """
     clean_input = await prompt_search_input()
     if not clean_input:
@@ -119,10 +118,32 @@ async def select_or_find_video() -> tuple[str, str] | tuple[None, None]:
         print("Selection cancelled.")
         return None, None
 
-    return selected  # returns (provider, video_id)
+    return selected
 
 
-async def run_cli():
+def display_transcript(
+    formatted_text: str,
+    max_lines: int | None = 25,
+) -> None:
+    """Print formatted transcript lines clearly in the terminal."""
+    print("\n" + "=" * 60)
+    print(" 📜 VIDEO TRANSCRIPT")
+    print("=" * 60)
+
+    lines = formatted_text.splitlines()
+    if max_lines and len(lines) > max_lines:
+        for line in lines[:max_lines]:
+            print(f"  {line}")
+        print(f"\n  ... and {len(lines) - max_lines} more lines.")
+    else:
+        for line in lines:
+            print(f"  {line}")
+
+    print("=" * 60 + "\n")
+
+
+async def run_cli() -> None:
+    """Run the main interactive CLI session."""
     print("=" * 60)
     print(" 🔍 Audience Lens")
     print(" Discover what your audience is saying about your content!")
@@ -134,10 +155,20 @@ async def run_cli():
 
     print(f"\n✅ Provider: {provider}")
     print(f"✅ Video ID: {video_id}")
-    # Next step in the pipeline: comment and transcription fetching & analysis
+
+    # Fetch and display transcript
+    print("\n⏳ Fetching transcript...")
+    raw_transcript = youtube.get_video_transcript(video_id)
+    if raw_transcript:
+        formatted = youtube.format_transcript_lines(
+            raw_transcript,
+            with_timestamps=True,
+        )
+        display_transcript(formatted, max_lines=25)
 
 
-def main():
+def main() -> None:
+    """Entry point for audience-lens CLI command."""
     try:
         asyncio.run(run_cli())
     except KeyboardInterrupt:

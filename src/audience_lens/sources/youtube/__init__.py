@@ -2,12 +2,21 @@
 
 PROVIDER_NAME = "YouTube"
 
-from audience_lens.sources.youtube.client import search_videos, extract_video_data
-from audience_lens.sources.youtube.parser import extract_video_id
+from audience_lens.sources.youtube.client import (
+    get_video_transcript,
+    search_videos,
+)
+from audience_lens.sources.youtube.formatter import (
+    extract_video_data,
+    extract_video_id,
+    format_transcript_lines,
+)
 
 __all__ = [
     "PROVIDER_NAME",
     "search_videos",
-    "extract_video_data",
+    "get_video_transcript",
     "extract_video_id",
+    "extract_video_data",
+    "format_transcript_lines",
 ]
