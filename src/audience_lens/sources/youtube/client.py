@@ -1,7 +1,8 @@
-# justluk3s h3re
+
+import asyncio
+from requests import Session
 
 import httpx
-from requests import Session
 from youtube_transcript_api import (
     NoTranscriptFound,
     TranscriptsDisabled,
@@ -10,7 +11,7 @@ from youtube_transcript_api import (
 )
 
 from audience_lens.config import YOUTUBE_API_KEY
-
+from audience_lens.sources.youtube.formatter import extract_video_data
 
 async def search_videos(query: str, max_results: int = 10) -> dict:
     """Query YouTube search endpoint for video metadata."""
@@ -27,7 +28,14 @@ async def search_videos(query: str, max_results: int = 10) -> dict:
     async with httpx.AsyncClient() as client:
         response = await client.get(url, params=params)
         response.raise_for_status()
-        return response.json()
+        data = response.json()
+        
+        results = []
+        for item in data.get("items", []):
+            parsed = extract_video_data(item)
+            parsed["provider"] = "YouTube"
+            results.append(parsed)
+        return results
 
 
 def get_transcript_session() -> Session:
@@ -45,7 +53,7 @@ def get_transcript_session() -> Session:
     return session
 
 
-def get_video_transcript(
+async def get_video_transcript(
     video_id: str,
     target_language: str = "en",
 ) -> list[dict] | None:
@@ -56,39 +64,42 @@ def get_video_transcript(
     2. Falls back to translating any available transcript.
     3. Falls back to the last available raw transcript if translation fails.
     """
-    session = get_transcript_session()
-    ytt_api = YouTubeTranscriptApi(http_client=session)
-
-    try:
-        transcript_list = ytt_api.list(video_id)
+    def _fetch():
+        session = get_transcript_session()
+        ytt_api = YouTubeTranscriptApi(http_client=session)
 
         try:
-            transcript = transcript_list.find_transcript(
-                [target_language, "en-US", "en-GB"]
-            )
-        except NoTranscriptFound:
-            available_transcripts = list(transcript_list)
-            if not available_transcripts:
-                print(f"⚠️ No transcripts available for video '{video_id}'.")
-                return None
+            transcript_list = ytt_api.list(video_id)
 
-            transcript = None
-            for t in available_transcripts:
-                if t.is_translatable:
-                    transcript = t.translate(target_language)
-                    break
+            try:
+                transcript = transcript_list.find_transcript(
+                    [target_language, "en-US", "en-GB"]
+                )
+            except NoTranscriptFound:
+                available_transcripts = list(transcript_list)
+                if not available_transcripts:
+                    print(f"⚠️ No transcripts available for video '{video_id}'.")
+                    return None
 
-            if transcript is None:
-                transcript = available_transcripts[-1]
+                transcript = None
+                for t in available_transcripts:
+                    if t.is_translatable:
+                        transcript = t.translate(target_language)
+                        break
 
-        return transcript.fetch().to_raw_data()
+                if transcript is None:
+                    transcript = available_transcripts[-1]
 
-    except TranscriptsDisabled:
-        print(f"⚠️ Transcripts are disabled for video '{video_id}'.")
-        return None
-    except VideoUnavailable:
-        print(f"⚠️ Video '{video_id}' is unavailable (private or deleted).")
-        return None
-    except Exception as e:
-        print(f"⚠️ Could not retrieve transcript for video '{video_id}': {e}")
-        return None
+            return transcript.fetch().to_raw_data()
+
+        except TranscriptsDisabled:
+            print(f"⚠️ Transcripts are disabled for video '{video_id}'.")
+            return None
+        except VideoUnavailable:
+            print(f"⚠️ Video '{video_id}' is unavailable (private or deleted).")
+            return None
+        except Exception as e:
+            print(f"⚠️ Could not retrieve transcript for video '{video_id}': {e}")
+            return None
+        
+    return await asyncio.to_thread(_fetch)

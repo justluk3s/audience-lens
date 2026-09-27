@@ -1,4 +1,3 @@
-# justluk3s h3re
 
 PROVIDER_NAME = "YouTube"
 

@@ -1,4 +1,3 @@
-# justluk3s h3re
 
 import html
 import re
@@ -9,19 +8,13 @@ YOUTUBE_REGEX = re.compile(
     r"(?:https?:\/\/)?youtu\.be\/([a-zA-Z0-9_-]{11})"
 )
 
-
 def extract_video_id(raw_input: str) -> str | None:
     """Extract an 11-character YouTube video ID from a URL or raw ID string."""
     clean_input = raw_input.strip()
-
-    if re.fullmatch(r"[a-zA-Z0-9_-]{11}", clean_input):
-        return clean_input
-
     match = YOUTUBE_REGEX.search(clean_input)
     if match:
         return match.group(1) or match.group(2)
     return None
-
 
 def extract_video_data(item: dict) -> dict:
     """Format and clean a raw video search snippet from YouTube API."""

@@ -1,4 +1,3 @@
-# justluk3s h3re
 
 import os
 from dotenv import load_dotenv
