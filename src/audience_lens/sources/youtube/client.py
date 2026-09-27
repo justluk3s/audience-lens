@@ -1,8 +1,7 @@
-
 import asyncio
-from requests import Session
 
 import httpx
+from requests import Session
 from youtube_transcript_api import (
     NoTranscriptFound,
     TranscriptsDisabled,
@@ -13,7 +12,8 @@ from youtube_transcript_api import (
 from audience_lens.config import YOUTUBE_API_KEY
 from audience_lens.sources.youtube.formatter import extract_video_data
 
-async def search_videos(query: str, max_results: int = 10) -> dict:
+
+async def search_videos(query: str, max_results: int = 10) -> list[dict]:
     """Query YouTube search endpoint for video metadata."""
     url = "https://www.googleapis.com/youtube/v3/search"
     params = {
@@ -29,7 +29,7 @@ async def search_videos(query: str, max_results: int = 10) -> dict:
         response = await client.get(url, params=params)
         response.raise_for_status()
         data = response.json()
-        
+
         results = []
         for item in data.get("items", []):
             parsed = extract_video_data(item)
@@ -101,5 +101,5 @@ async def get_video_transcript(
         except Exception as e:
             print(f"⚠️ Could not retrieve transcript for video '{video_id}': {e}")
             return None
-        
+
     return await asyncio.to_thread(_fetch)
