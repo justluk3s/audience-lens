@@ -35,7 +35,7 @@ class TestPEP8Compliance(unittest.TestCase):
                 with open(path, "r", encoding="utf-8") as f:
                     content = f.read()
                 if not content.strip():
-                    continue  # Allow completely empty __init__.py files
+                    continue
                 first_line = content.splitlines()[0]
                 self.assertNotEqual(
                     first_line.strip(),
@@ -50,7 +50,7 @@ class TestPEP8Compliance(unittest.TestCase):
                 with open(path, "r", encoding="utf-8") as f:
                     content = f.read()
                 if not content:
-                    continue  # Allow completely empty __init__.py files
+                    continue
                 self.assertTrue(
                     content.endswith("\n"),
                     f"{path}: Missing trailing newline at EOF (W292)",
@@ -72,6 +72,48 @@ class TestPEP8Compliance(unittest.TestCase):
                             stripped.rstrip(),
                             f"{path}:{line_num}: Trailing whitespace detected",
                         )
+
+    def test_top_level_function_blank_lines(self):
+        """PEP8 (E302 / E303): Top-level functions must be preceded by exactly 2 blank lines."""
+        for path in self.python_files:
+            with open(path, "r", encoding="utf-8") as f:
+                content = f.read()
+            if not content.strip():
+                continue
+
+            try:
+                tree = ast.parse(content, filename=path)
+            except SyntaxError:
+                continue
+
+            lines = content.splitlines()
+
+            for node in tree.body:
+                if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
+                    lineno = node.lineno  # 1-indexed
+
+                    # If it's the very first line of the file, E302 does not apply
+                    if lineno <= 2:
+                        continue
+
+                    # Count how many preceding lines are completely blank
+                    blank_count = 0
+                    idx = lineno - 2  # 0-indexed line immediately before
+                    while idx >= 0 and lines[idx].strip() == "":
+                        blank_count += 1
+                        idx -= 1
+
+                    with self.subTest(file=path, function=node.name, line=lineno):
+                        if blank_count < 2:
+                            self.fail(
+                                f"{path}:{lineno} (E302): expected 2 blank lines before "
+                                f"'{node.name}', found {blank_count}"
+                            )
+                        elif blank_count > 2:
+                            self.fail(
+                                f"{path}:{lineno} (E303): too many blank lines ({blank_count}) "
+                                f"before '{node.name}', expected 2"
+                            )
 
 
 if __name__ == "__main__":
