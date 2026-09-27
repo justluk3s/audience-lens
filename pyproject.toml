@@ -13,6 +13,13 @@ dependencies = [
     "httpx",
     "python-dotenv",
     "questionary",
+    "requests",
+    "youtube-transcript-api",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest",
 ]
 
 [project.scripts]
